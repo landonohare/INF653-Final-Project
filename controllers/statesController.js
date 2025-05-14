@@ -1,29 +1,27 @@
+// controllers/statesController.js
 const State = require('../models/States');
 const statesData = require('../models/statesData.json');
 
-// Helper: find state data from JSON by state code (case-insensitive)
-const getStateDataByCode = (code) => statesData.find(st => st.code === code);
-
 // GET all states (optionally filter by contiguous/non-contiguous)
-const getAllStates = async (req, res) => {
+exports.getAllStates = async (req, res) => {
   const contig = req.query.contig;
-  let results = statesData;
-  if (contig === 'true') {
-    // Contiguous only (filter out AK and HI)
-    results = statesData.filter(st => st.contiguous);
-  } else if (contig === 'false') {
-    // Non-contiguous only
-    results = statesData.filter(st => !st.contiguous);
-  }
+let results;
+if (contig === 'true') {
+  // contiguous states are all except AK and HI
+  results = statesData.filter(st => st.code !== 'AK' && st.code !== 'HI');
+} else if (contig === 'false') {
+  // non-contiguous only AK and HI
+  results = statesData.filter(st => st.code === 'AK' || st.code === 'HI');
+} else {
+  results = statesData;
+}
 
   try {
-    const statesWithFacts = await State.find({});
-    const funfactsMap = {};
-    statesWithFacts.forEach(doc => { funfactsMap[doc.stateCode] = doc.funfacts; });
-
+    const docs = await State.find({});
+    const map  = docs.reduce((m, d) => { m[d.stateCode] = d.funfacts; return m; }, {});
     const merged = results.map(st => {
       const info = { ...st };
-      if (funfactsMap[st.code]) info.funfacts = funfactsMap[st.code];
+      if (map[st.code]) info.funfacts = map[st.code];
       return info;
     });
     return res.json(merged);
@@ -33,37 +31,29 @@ const getAllStates = async (req, res) => {
 };
 
 // GET single state full info
-const getState = async (req, res) => {
-  const code = req.params.state.toUpperCase();
-  const stateData = getStateDataByCode(code);
-  if (!stateData) {
-    return res.status(404).json({ message: 'Invalid state abbreviation parameter' });
-  }
+exports.getState = async (req, res) => {
+  const { stateData, stateCode } = req;
   try {
-    const stateDoc = await State.findOne({ stateCode: code });
+    const stateDoc = await State.findOne({ stateCode });
+    const response = { ...stateData };
     if (stateDoc && Array.isArray(stateDoc.funfacts)) {
-      stateData.funfacts = stateDoc.funfacts;
+      response.funfacts = stateDoc.funfacts;
     }
-    return res.json(stateData);
+    return res.json(response);
   } catch (err) {
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 // GET random fun fact for a state
-const getRandomFunFact = async (req, res) => {
-  const code = req.params.state.toUpperCase();
-  const stateData = getStateDataByCode(code);
-  if (!stateData) {
-    return res.status(404).json({ message: 'Invalid state abbreviation parameter' });
-  }
+exports.getRandomFunFact = async (req, res) => {
+  const { stateData, stateCode } = req;
   try {
-    const stateDoc = await State.findOne({ stateCode: code });
+    const stateDoc = await State.findOne({ stateCode });
     if (!stateDoc?.funfacts?.length) {
       return res.status(404).json({ message: `No Fun Facts found for ${stateData.state}` });
     }
-    const arr = stateDoc.funfacts;
-    const fact = arr[Math.floor(Math.random() * arr.length)];
+    const fact = stateDoc.funfacts[Math.floor(Math.random() * stateDoc.funfacts.length)];
     return res.json({ funfact: fact });
   } catch (err) {
     return res.status(500).json({ error: 'Internal server error' });
@@ -71,53 +61,33 @@ const getRandomFunFact = async (req, res) => {
 };
 
 // GET state capital
-const getStateCapital = (req, res) => {
-  const code = req.params.state.toUpperCase();
-  const stateData = getStateDataByCode(code);
-  if (!stateData) {
-    return res.status(404).json({ message: 'Invalid state abbreviation parameter' });
-  }
+exports.getStateCapital = (req, res) => {
+  const { stateData } = req;
   return res.json({ state: stateData.state, capital: stateData.capital_city });
 };
 
 // GET state nickname
-const getStateNickname = (req, res) => {
-  const code = req.params.state.toUpperCase();
-  const stateData = getStateDataByCode(code);
-  if (!stateData) {
-    return res.status(404).json({ message: 'Invalid state abbreviation parameter' });
-  }
+exports.getStateNickname = (req, res) => {
+  const { stateData } = req;
   return res.json({ state: stateData.state, nickname: stateData.nickname });
 };
 
 // GET state population
-const getStatePopulation = (req, res) => {
-  const code = req.params.state.toUpperCase();
-  const stateData = getStateDataByCode(code);
-  if (!stateData) {
-    return res.status(404).json({ message: 'Invalid state abbreviation parameter' });
-  }
+exports.getStatePopulation = (req, res) => {
+  const { stateData } = req;
   const popStr = stateData.population.toLocaleString('en-US');
   return res.json({ state: stateData.state, population: popStr });
 };
 
 // GET state admission date
-const getStateAdmission = (req, res) => {
-  const code = req.params.state.toUpperCase();
-  const stateData = getStateDataByCode(code);
-  if (!stateData) {
-    return res.status(404).json({ message: 'Invalid state abbreviation parameter' });
-  }
+exports.getStateAdmission = (req, res) => {
+  const { stateData } = req;
   return res.json({ state: stateData.state, admitted: stateData.admission_date });
 };
 
 // POST new fun facts for a state
-const createFunFact = async (req, res) => {
-  const code = req.params.state.toUpperCase();
-  const stateData = getStateDataByCode(code);
-  if (!stateData) {
-    return res.status(404).json({ message: 'Invalid state abbreviation parameter' });
-  }
+exports.createFunFact = async (req, res) => {
+  const { stateData, stateCode } = req;
   const funfacts = req.body.funfacts;
   if (!funfacts) {
     return res.status(400).json({ message: 'State fun facts value required' });
@@ -126,13 +96,13 @@ const createFunFact = async (req, res) => {
     return res.status(400).json({ message: 'State fun facts value must be an array' });
   }
   try {
-    const stateDoc = await State.findOne({ stateCode: code });
     let updated;
+    const stateDoc = await State.findOne({ stateCode });
     if (stateDoc) {
       stateDoc.funfacts.push(...funfacts);
       updated = await stateDoc.save();
     } else {
-      updated = await State.create({ stateCode: code, funfacts });
+      updated = await State.create({ stateCode, funfacts });
     }
     return res.status(201).json(updated);
   } catch (err) {
@@ -141,12 +111,8 @@ const createFunFact = async (req, res) => {
 };
 
 // PATCH update a specific fun fact
-const updateFunFact = async (req, res) => {
-  const code = req.params.state.toUpperCase();
-  const stateData = getStateDataByCode(code);
-  if (!stateData) {
-    return res.status(404).json({ message: 'Invalid state abbreviation parameter' });
-  }
+exports.updateFunFact = async (req, res) => {
+  const { stateData, stateCode } = req;
   const idxRaw = req.body.index;
   const newFact = req.body.funfact;
   if (idxRaw == null) {
@@ -157,7 +123,7 @@ const updateFunFact = async (req, res) => {
   }
   const idx = idxRaw - 1;
   try {
-    const stateDoc = await State.findOne({ stateCode: code });
+    const stateDoc = await State.findOne({ stateCode });
     if (!stateDoc?.funfacts?.length) {
       return res.status(404).json({ message: `No Fun Facts found for ${stateData.state}` });
     }
@@ -173,19 +139,15 @@ const updateFunFact = async (req, res) => {
 };
 
 // DELETE a specific fun fact
-const deleteFunFact = async (req, res) => {
-  const code = req.params.state.toUpperCase();
-  const stateData = getStateDataByCode(code);
-  if (!stateData) {
-    return res.status(404).json({ message: 'Invalid state abbreviation parameter' });
-  }
+exports.deleteFunFact = async (req, res) => {
+  const { stateData, stateCode } = req;
   const idxRaw = req.body.index;
   if (idxRaw == null) {
     return res.status(400).json({ message: 'State fun fact index value required' });
   }
   const idx = idxRaw - 1;
   try {
-    const stateDoc = await State.findOne({ stateCode: code });
+    const stateDoc = await State.findOne({ stateCode });
     if (!stateDoc?.funfacts?.length) {
       return res.status(404).json({ message: `No Fun Facts found for ${stateData.state}` });
     }
@@ -198,17 +160,4 @@ const deleteFunFact = async (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: 'Internal server error' });
   }
-};
-
-module.exports = {
-  getAllStates,
-  getState,
-  getRandomFunFact,
-  getStateCapital,
-  getStateNickname,
-  getStatePopulation,
-  getStateAdmission,
-  createFunFact,
-  updateFunFact,
-  deleteFunFact
 };

@@ -4,6 +4,9 @@ const mongoose = require('mongoose');
 const path     = require('path');
 require('dotenv').config();
 
+
+mongoose.set('strictQuery', true);
+
 const statesRouter = require('./routes/statesRouter');
 const app          = express();
 
@@ -37,11 +40,36 @@ if (require.main === module) {
     const count = await State.countDocuments();
     if (count === 0) {
       await State.insertMany([
-        { stateCode:'KS', funfacts:[ /* your 3 facts */ ] },
-        { stateCode:'MO', funfacts:[ /* … */ ] },
-        { stateCode:'OK', funfacts:[ /* … */ ] },
-        { stateCode:'NE', funfacts:[ /* … */ ] },
-        { stateCode:'CO', funfacts:[ /* … */ ] }
+        { stateCode: 'KS', funfacts: [
+            'Wizard of Oz was set in Kansas',
+            'Sunflower is the state flower',
+            'Kansas produces more wheat than any other state'
+          ]
+        },
+        { stateCode: 'MO', funfacts: [
+            'The Pony Express started in Missouri',
+            'Mark Twain was from Missouri',
+            'Missouri is known as the Show-Me State'
+          ]
+        },
+        { stateCode: 'OK', funfacts: [
+            'Oklahoma hosted the first parking meter',
+            'Home of Route 66',
+            'Oklahoma means “red people”'
+          ]
+        },
+        { stateCode: 'NE', funfacts: [
+            'Nebraska’s state sport is sandhill crane watching',
+            'Home of Kool-Aid',
+            'Birthplace of the refrigerated railroad car'
+          ]
+        },
+        { stateCode: 'CO', funfacts: [
+            'The world’s first rodeo was in Colorado',
+            'Colorado has the highest average elevation of any state',
+            'Home to the world’s largest flat-top mountain'
+          ]
+        }
       ]);
       console.log('Seeded initial funfacts');
     }
