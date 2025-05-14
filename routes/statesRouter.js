@@ -1,23 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const statesController = require('../controllers/statesController');
+const verifyState = require('../middleware/verifyState');
+const ctrl = require('../controllers/statesController');
 
-// GET routes for state data
-router.get('/', statesController.getAllStates);
-router.get('/:state', statesController.getState);
-router.get('/:state/funfact', statesController.getRandomFunFact);
-router.get('/:state/capital', statesController.getStateCapital);
-router.get('/:state/nickname', statesController.getStateNickname);
-router.get('/:state/population', statesController.getStatePopulation);
-router.get('/:state/admission', statesController.getStateAdmission);
+router.get('/',            ctrl.getAllStates);
 
-// POST route to add new fun facts
-router.post('/:state/funfact', statesController.createFunFact);
+// anything with :state needs verification first
+router.get('/:state',      verifyState, ctrl.getState);
+router.get('/:state/funfact', verifyState, ctrl.getRandomFunFact);
+router.get('/:state/capital',  verifyState, ctrl.getStateCapital);
+router.get('/:state/nickname', verifyState, ctrl.getStateNickname);
+router.get('/:state/population', verifyState, ctrl.getStatePopulation);
+router.get('/:state/admission',  verifyState, ctrl.getStateAdmission);
 
-// PATCH route to update an existing fun fact
-router.patch('/:state/funfact', statesController.updateFunFact);
-
-// DELETE route to remove a fun fact
-router.delete('/:state/funfact', statesController.deleteFunFact);
+router.post('/:state/funfact',  verifyState, ctrl.createFunFact);
+router.patch('/:state/funfact', verifyState, ctrl.updateFunFact);
+router.delete('/:state/funfact',verifyState, ctrl.deleteFunFact);
 
 module.exports = router;
