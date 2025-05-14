@@ -1,5 +1,5 @@
 // middleware/verifyState.js
-const statesData = require('../statesData.json');
+const statesData = require('../models/statesData.json');
 
 // Build an array of valid codes, e.g. ["AL","AK",…]
 const validCodes = statesData.map(st => st.code);
