@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>US States API</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f8f9fa; }
+    h1 { color: #2c3e50; }
+    p { font-size: 1.1em; }
+    code { background: #eaeaea; padding: 2px 4px; }
+  </style>
+</head>
+<body>
+  <h1>Welcome to the US States API</h1>
+  <p>This is a RESTful API providing data about the 50 U.S. states. You can retrieve information such as each state's capital, nickname, population, admission date to the Union, and random fun facts (when available).</p>
+  <p>All API endpoints are under the base path <code>/states</code>. For example:</p>
+  <ul>
+    <li><code>/states</code> – Get data for all states.</li>
+    <li><code>/states?contig=true</code> – Get data for all contiguous states (the lower 48).</li>
+    <li><code>/states?contig=false</code> – Get data for the non-contiguous states (Alaska and Hawaii).</li>
+    <li><code>/states/KS</code> – Get full details for Kansas.</li>
+    <li><code>/states/KS/capital</code> – Get the capital of Kansas.</li>
+    <li><code>/states/KS/funfact</code> – Get a random fun fact about Kansas.</li>
+  </ul>
+  <p>You can also add or modify "fun facts" about specific states using POST, PATCH, and DELETE requests to the appropriate <code>/states/<em>:state</em>/funfact</code> endpoints.</p>
+  <p>See the project documentation for full details on each endpoint. Enjoy exploring the states!</p>
+</body>
+</html>
