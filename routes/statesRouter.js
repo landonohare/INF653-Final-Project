@@ -1,22 +1,24 @@
-const express = require('express');
-const router = express.Router();
+// routes/statesRouter.js
+const express     = require('express');
+const router      = express.Router();
 const verifyState = require('../middleware/verifyState');
-const ctrl = require('../controllers/statesController');
+const ctrl        = require('../controllers/statesController');
 
-// GET /states/ - list all states, optionally filter by contig
-router.get('/', ctrl.getAllStates);
+// Debug: confirm what handlers actually loaded
+console.log('CONTROLLER KEYS:', Object.keys(ctrl));
 
-// All routes below use verifyState to validate :state param
-router.get('/:state', verifyState, ctrl.getState);
-router.get('/:state/funfact', verifyState, ctrl.getRandomFunFact);
-router.get('/:state/capital', verifyState, ctrl.getStateCapital);
+router.get('/',                ctrl.getAllStates);
+
+// everything below uses verifyState
+router.get('/:state',          verifyState, ctrl.getState);
+router.get('/:state/funfact',  verifyState, ctrl.getRandomFunFact);
+router.get('/:state/capital',  verifyState, ctrl.getStateCapital);
 router.get('/:state/nickname', verifyState, ctrl.getStateNickname);
-router.get('/:state/population', verifyState, ctrl.getStatePopulation);
+router.get('/:state/population',verifyState, ctrl.getStatePopulation);
 router.get('/:state/admission', verifyState, ctrl.getStateAdmission);
 
-// Mutations for funfacts
-router.post('/:state/funfact', verifyState, ctrl.createFunFact);
+router.post('/:state/funfact',  verifyState, ctrl.createFunFact);
 router.patch('/:state/funfact', verifyState, ctrl.updateFunFact);
-router.delete('/:state/funfact', verifyState, ctrl.deleteFunFact);
+router.delete('/:state/funfact',verifyState, ctrl.deleteFunFact);
 
 module.exports = router;
