@@ -1,175 +1,134 @@
+// controllers/statesController.js
+// Business logic for each US States API endpoint.
+// ---------------------------------------------------------------------------
+
 const State      = require('../models/States');
 const statesData = require('../models/statesData.json');
 
+// Helper: map of raw state data keyed by code
+const statesMap = statesData.reduce((m, st)=>{ m[st.code] = st; return m; }, {});
 
-// GET /states/  — list all, with optional contig filter and merged funfacts
+// ---------------------------------------------------------------------------
+// GET /states  (optionally ?contig=true|false)
+// ---------------------------------------------------------------------------
 exports.getAllStates = async (req, res) => {
-  const contig = req.query.contig;
-  let results;
-  if (contig === 'true') {
-    results = statesData.filter(st => st.code !== 'AK' && st.code !== 'HI');
-  } else if (contig === 'false') {
-    results = statesData.filter(st => st.code === 'AK' || st.code === 'HI');
-  } else {
-    results = statesData;
-  }
-
   try {
+    // 1) base set — apply contig filter if requested
+    const contig = req.query.contig;
+    let base = statesData;
+    if (contig === 'true')   base = statesData.filter(st => !['AK','HI'].includes(st.code));
+    if (contig === 'false')  base = statesData.filter(st =>  ['AK','HI'].includes(st.code));
+
+    // 2) fetch funfacts from Mongo once
     const docs = await State.find({});
-    const factsMap = docs.reduce((map, doc) => {
-      map[doc.stateCode] = doc.funfacts;
-      return map;
-    }, {});
+    const funMap = docs.reduce((map, d)=>{ map[d.stateCode] = d.funfacts; return map; },{});
 
-    const merged = results.map(st => {
-      const out = { ...st };
-      if (factsMap[st.code]) out.funfacts = factsMap[st.code];
-      return out;
-    });
-
-    return res.json(merged);
+    // 3) merge & send
+    const merged = base.map(st => funMap[st.code] ? { ...st, funfacts: funMap[st.code] } : st);
+    res.json(merged);
   }
-  catch (err) {
-    console.error('Error in getAllStates:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+  catch(err){
+    console.error('getAllStates error:', err);
+    res.status(500).json({ error:'Internal server error' });
   }
 };
 
+// ---------------------------------------------------------------------------
+// Shared utility to attach merged record (via verifyState)
+// ---------------------------------------------------------------------------
+function mergedRecord(stateCode, stateDoc){
+  const raw = { ...statesMap[stateCode] };
+  if(stateDoc?.funfacts?.length) raw.funfacts = stateDoc.funfacts;
+  return raw;
+}
+
+// ---------------------------------------------------------------------------
 // GET /states/:state
-exports.getState = async (req, res) => {
-  const { stateData, stateCode } = req;
-  try {
-    const stateDoc = await State.findOne({ stateCode });
-    const out = { ...stateData };
-    if (Array.isArray(stateDoc?.funfacts)) out.funfacts = stateDoc.funfacts;
-    return res.json(out);
-  }
-  catch (err) {
-    console.error('Error in getState:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+// ---------------------------------------------------------------------------
+exports.getState = async (req,res)=>{
+  try{
+    const doc = await State.findOne({ stateCode: req.stateCode });
+    res.json( mergedRecord(req.stateCode, doc) );
+  }catch(err){
+    console.error('getState error:', err);
+    res.status(500).json({ error:'Internal server error' });
   }
 };
 
-// GET /states/:state/funfact
-exports.getRandomFunFact = async (req, res) => {
-  const { stateData, stateCode } = req;
-  try {
-    const stateDoc = await State.findOne({ stateCode });
-    if (!stateDoc?.funfacts?.length) {
-      return res.status(404).json({ message: `No Fun Facts found for ${stateData.state}` });
-    }
-    const fact = stateDoc.funfacts[Math.floor(Math.random() * stateDoc.funfacts.length)];
-    return res.json({ funfact: fact });
+// ---------------------------------------------------------------------------
+// GET /states/:state/funfact (random)
+// ---------------------------------------------------------------------------
+exports.getRandomFunFact = async (req,res)=>{
+  const raw = statesMap[req.stateCode];
+  const doc = await State.findOne({ stateCode:req.stateCode });
+  if(!doc?.funfacts?.length){
+    return res.status(404).json({ message: `No Fun Facts found for ${raw.state}` });
   }
-  catch (err) {
-    console.error('Error in getRandomFunFact:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+  const fact = doc.funfacts[ Math.floor(Math.random()*doc.funfacts.length) ];
+  res.json({ funfact: fact });
 };
 
-// GET /states/:state/capital
-exports.getStateCapital = (req, res) => {
-  const { stateData } = req;
-  return res.json({ state: stateData.state, capital: stateData.capital_city });
+// ---------------------------------------------------------------------------
+// Single-property helpers (capital, nickname, population, admission)
+// ---------------------------------------------------------------------------
+const propHelper = (prop, outKey)=> (req,res)=>{
+  const raw = statesMap[req.stateCode];
+  let val = raw[prop];
+  if(prop==='population') val = val.toLocaleString('en-US');
+  res.json({ state: raw.state, [outKey]: val });
 };
 
-// GET /states/:state/nickname
-exports.getStateNickname = (req, res) => {
-  const { stateData } = req;
-  return res.json({ state: stateData.state, nickname: stateData.nickname });
-};
+exports.getStateCapital    = propHelper('capital_city',    'capital');
+exports.getStateNickname   = propHelper('nickname',        'nickname');
+exports.getStatePopulation = propHelper('population',      'population');
+exports.getStateAdmission  = propHelper('admission_date',  'admitted');
 
-// GET /states/:state/population
-exports.getStatePopulation = (req, res) => {
-  const { stateData } = req;
-  const popStr = stateData.population.toLocaleString('en-US');
-  return res.json({ state: stateData.state, population: popStr });
-};
-
-// GET /states/:state/admission
-exports.getStateAdmission = (req, res) => {
-  const { stateData } = req;
-  return res.json({ state: stateData.state, admitted: stateData.admission_date });
-};
-
-// POST /states/:state/funfact
-exports.createFunFact = async (req, res) => {
-  const { stateData, stateCode } = req;
+// ---------------------------------------------------------------------------
+// POST /states/:state/funfact (append)
+// ---------------------------------------------------------------------------
+exports.createFunFact = async (req,res)=>{
   const funfacts = req.body.funfacts;
-  if (!funfacts) {
-    return res.status(400).json({ message: 'State fun facts value required' });
-  }
-  if (!Array.isArray(funfacts)) {
-    return res.status(400).json({ message: 'State fun facts value must be an array' });
-  }
-  try {
-    let doc = await State.findOne({ stateCode });
-    if (doc) {
-      doc.funfacts.push(...funfacts);
-    } else {
-      doc = new State({ stateCode, funfacts });
-    }
-    const saved = await doc.save();
-    return res.status(201).json(saved);
-  }
-  catch (err) {
-    console.error('Error in createFunFact:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+  if(!funfacts)                return res.status(400).json({ message:'State fun facts value required' });
+  if(!Array.isArray(funfacts)) return res.status(400).json({ message:'State fun facts value must be an array' });
+
+  let doc = await State.findOne({ stateCode:req.stateCode });
+  if(doc){ doc.funfacts.push(...funfacts); }
+  else   { doc = new State({ stateCode:req.stateCode, funfacts }); }
+  await doc.save();
+  res.status(201).json( mergedRecord(req.stateCode, doc) );
 };
 
+// ---------------------------------------------------------------------------
 // PATCH /states/:state/funfact
-exports.updateFunFact = async (req, res) => {
-  const { stateData, stateCode } = req;
-  const idxRaw = req.body.index;
-  const newFact = req.body.funfact;
-  if (idxRaw == null) {
-    return res.status(400).json({ message: 'State fun fact index value required' });
-  }
-  if (typeof newFact !== 'string') {
-    return res.status(400).json({ message: 'State fun fact value required' });
-  }
-  const idx = idxRaw - 1;
-  try {
-    const doc = await State.findOne({ stateCode });
-    if (!doc?.funfacts?.length) {
-      return res.status(404).json({ message: `No Fun Facts found for ${stateData.state}` });
-    }
-    if (idx < 0 || idx >= doc.funfacts.length) {
-      return res.status(404).json({ message: `No Fun Fact found at that index for ${stateData.state}` });
-    }
-    doc.funfacts[idx] = newFact;
-    const saved = await doc.save();
-    return res.json(saved);
-  }
-  catch (err) {
-    console.error('Error in updateFunFact:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+// ---------------------------------------------------------------------------
+exports.updateFunFact = async (req,res)=>{
+  const { index, funfact } = req.body;
+  if(index==null)            return res.status(400).json({ message:'State fun fact index value required' });
+  if(typeof funfact!=='string') return res.status(400).json({ message:'State fun fact value required' });
+
+  const doc = await State.findOne({ stateCode:req.stateCode });
+  const raw = statesMap[req.stateCode];
+  if(!doc?.funfacts?.length)  return res.status(404).json({ message:`No Fun Facts found for ${raw.state}` });
+
+  const idx = index-1;
+  if(idx<0 || idx>=doc.funfacts.length) return res.status(404).json({ message:`No Fun Fact found at that index for ${raw.state}` });
+  doc.funfacts[idx]=funfact;
+  await doc.save();
+  res.json( mergedRecord(req.stateCode, doc) );
 };
 
+// ---------------------------------------------------------------------------
 // DELETE /states/:state/funfact
-exports.deleteFunFact = async (req, res) => {
-  const { stateData, stateCode } = req;
-  const idxRaw = req.body.index;
-  if (idxRaw == null) {
-    return res.status(400).json({ message: 'State fun fact index value required' });
-  }
-  const idx = idxRaw - 1;
-  try {
-    const doc = await State.findOne({ stateCode });
-    if (!doc?.funfacts?.length) {
-      return res.status(404).json({ message: `No Fun Facts found for ${stateData.state}` });
-    }
-    if (idx < 0 || idx >= doc.funfacts.length) {
-      return res.status(404).json({ message: `No Fun Fact found at that index for ${stateData.state}` });
-    }
-    doc.funfacts.splice(idx, 1);
-    const saved = await doc.save();
-    return res.json(saved);
-  }
-  catch (err) {
-    console.error('Error in deleteFunFact:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+// ---------------------------------------------------------------------------
+exports.deleteFunFact = async (req,res)=>{
+  const { index } = req.body;
+  if(index==null) return res.status(400).json({ message:'State fun fact index value required' });
+  const doc = await State.findOne({ stateCode:req.stateCode });
+  const raw = statesMap[req.stateCode];
+  if(!doc?.funfacts?.length) return res.status(404).json({ message:`No Fun Facts found for ${raw.state}` });
+  const idx=index-1;
+  if(idx<0||idx>=doc.funfacts.length) return res.status(404).json({ message:`No Fun Fact found at that index for ${raw.state}` });
+  doc.funfacts.splice(idx,1);
+  await doc.save();
+  res.json( mergedRecord(req.stateCode, doc) );
 };
